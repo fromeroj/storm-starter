@@ -1,38 +1,40 @@
-(ns storm.starter.clj.word-count
+(ns storm.starter.clj .word-count
   (:import [backtype.storm StormSubmitter LocalCluster])
   (:use [backtype.storm clojure config])
   (:gen-class))
 
 (defspout sentence-spout ["sentence"]
   [conf context collector]
-  (let [sentences ["a little brown dog"
-                   "the man petted the dog"
-                   "four score and seven years ago"
-                   "an apple a day keeps the doctor away"]]
+  (let
+      [sentences ["Ten presente que se me cuenta"
+                  "entre los teoricos estudiosos"
+                  "y principales practicantes"
+                  "de la ley del minimo esfuerzo"]]
     (spout
      (nextTuple []
-       (Thread/sleep 100)
+       (Thread/sleep 1000)
        (emit-spout! collector [(rand-nth sentences)])         
        )
      (ack [id]
-        ;; You only need to define this method for reliable spouts
-        ;; (such as one that reads off of a queue like Kestrel)
-        ;; This is an unreliable spout, so it does nothing here
+        ;; Esto es para spouts confiable, que necesitan "dar recibo"
         ))))
 
-(defspout sentence-spout-parameterized ["word"] {:params [sentences] :prepare false}
+(defspout sentence-spout-parameterized ["word"] 
+  {:params [sentences] :prepare false}
   [collector]
   (Thread/sleep 500)
   (emit-spout! collector [(rand-nth sentences)]))
 
-(defbolt split-sentence ["word"] [tuple collector]
+(defbolt split-sentence ["word"] 
+  [tuple collector]
   (let [words (.split (.getString tuple 0) " ")]
     (doseq [w words]
       (emit-bolt! collector [w] :anchor tuple))
     (ack! collector tuple)
     ))
 
-(defbolt word-count ["word" "count"] {:prepare true}
+(defbolt word-count ["word" "count"] 
+  {:prepare true}
   [conf context collector]
   (let [counts (atom {})]
     (bolt
@@ -44,23 +46,28 @@
          )))))
 
 (defn mk-topology []
-
   (topology
-   {"1" (spout-spec sentence-spout)
+   {
+    "1" (spout-spec sentence-spout)
     "2" (spout-spec (sentence-spout-parameterized
-                     ["the cat jumped over the door"
-                      "greetings from a faraway land"])
-                     :p 2)}
-   {"3" (bolt-spec {"1" :shuffle "2" :shuffle}
+                     ["oye bartola ahi te dejo estos dos pesos"
+                      "pagas la renta el telefono y la luz"])
+                     :p 2)
+    }
+   {
+    "3" (bolt-spec {"1" :shuffle "2" :shuffle}
                    split-sentence
                    :p 5)
     "4" (bolt-spec {"3" ["word"]}
                    word-count
-                   :p 6)}))
+                   :p 6)
+    }
+   ))
+
 
 (defn run-local! []
   (let [cluster (LocalCluster.)]
-    (.submitTopology cluster "word-count" {TOPOLOGY-DEBUG true} (mk-topology))
+    (.submitTopology cluster "word-count" {TOPOLOGY-DEBUG true} (mk-topology) )
     (Thread/sleep 10000)
     (.shutdown cluster)
     ))
@@ -78,3 +85,5 @@
   ([name]
    (submit-topology! name)))
 
+;lein-compile
+;lein run -m storm.starter.clj.word-count
